@@ -97,7 +97,7 @@
   function saveDir(name,rec){ const d=JSON.parse(localStorage.getItem(LS_KEY)||"{}"); d[name.trim().toLowerCase()]=rec; localStorage.setItem(LS_KEY,JSON.stringify(d)); }
   function loadBroker(name){
     const rec = dir()[(name||"").trim().toLowerCase()];
-    if(rec){ $("#bkVat").value=rec.vat||""; $("#bkPostal").value=rec.postal||""; $("#bkDelivery").value=rec.delivery||""; }
+    if(rec){ $("#bkVat").value=rec.vat||""; $("#bkPostal").value=rec.postal||""; $("#bkDelivery").value=rec.delivery||""; if($("#bkEmail")) $("#bkEmail").value=rec.email||""; }
   }
 
   /* ---------- UI flow ---------- */
@@ -267,7 +267,7 @@
   /* ---------- broker save ---------- */
   $("#saveBroker").addEventListener("click", ()=>{
     const name=$("#bkName").value.trim(); if(!name) return;
-    saveDir(name,{vat:$("#bkVat").value.trim(),postal:$("#bkPostal").value.trim(),delivery:$("#bkDelivery").value.trim()});
+    saveDir(name,{vat:$("#bkVat").value.trim(),postal:$("#bkPostal").value.trim(),delivery:$("#bkDelivery").value.trim(),email:($("#bkEmail")?$("#bkEmail").value.trim():"")});
     const m=$("#savedMsg"); m.classList.remove("hidden"); setTimeout(()=>m.classList.add("hidden"),1600);
   });
   $("#bkName").addEventListener("change", e=>loadBroker(e.target.value));
@@ -288,7 +288,7 @@
   function brokerCfg(name){
     const rec = dir()[(name||"").trim().toLowerCase()] || {};
     return {
-      brokerName: name||"", brokerVat: rec.vat||"", brokerPostal: rec.postal||"", brokerDelivery: rec.delivery||"",
+      brokerName: name||"", brokerVat: rec.vat||"", brokerPostal: rec.postal||"", brokerDelivery: rec.delivery||"", brokerEmail: rec.email||"",
       chargeDesc: ($("#chargeDesc").value||"").split(/\n/).map(s=>s.trim()).filter(Boolean),
       sellerVat: $("#sellerVat").value.trim(),
       sellerAddr: ($("#sellerAddr").value||"").split(/\n/).map(s=>s.trim()).filter(Boolean)

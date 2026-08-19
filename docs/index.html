@@ -160,6 +160,7 @@
       <p class="hint">Broker name comes from the file. Address &amp; VAT aren't in SAGE &mdash; fill them once and they're saved on this machine for next time.</p>
       <div class="grid2">
         <div><label class="f">Broker (customer) name</label><input class="t" id="bkName" placeholder="e.g. Justin Matthew Nortier"></div>
+        <div><label class="f">Broker email <span class="muted">(for draft emails)</span></label><input class="t" id="bkEmail" type="email" placeholder="broker@example.com"></div>
         <div><label class="f">Customer VAT no <span class="muted">(optional)</span></label><input class="t" id="bkVat" placeholder="leave blank if none"></div>
         <div><label class="f">Broker postal address <span class="muted">(optional)</span></label><textarea class="t" id="bkPostal"></textarea></div>
         <div><label class="f">Broker delivery address</label><textarea class="t" id="bkDelivery" placeholder="606 Graceville, 102 Rosmead Avenue&#10;Kenilworth, 7708"></textarea></div>
@@ -250,6 +251,7 @@ Cape Town
         </div>
         <div><label class="f">Filter broker</label><input class="t" id="recBroker" placeholder="all brokers" list="brokerList"><datalist id="brokerList"></datalist></div>
         <div><label class="f">Year</label><select class="t" id="recYear" style="width:120px"><option value="">all</option></select></div>
+        <div style="flex:1;min-width:200px"><label class="f">Find invoice # / description</label><input class="t" id="recSearch" placeholder="e.g. INV0008156 or Claire Murch"></div>
       </div>
       <div id="recBody" style="margin-top:8px"><p class="muted">Loading records&hellip;</p></div>
     </section>

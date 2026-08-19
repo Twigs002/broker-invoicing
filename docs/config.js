@@ -2,5 +2,9 @@
 window.QUAY_CFG = {
   SUPABASE_URL:      'https://dqszbqiimbfvmmnpgpsb.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxc3picWlpbWJmdm1tbnBncHNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NDk4OTQsImV4cCI6MjA5NjQyNTg5NH0.M9RQnJEidyIMZAwbELTSPakiSnvuWBdHTjD7nuOdCZY',
-  AUTH_EMAIL_DOMAIN: 'quay1.local'   // username + PIN -> username@quay1.local (same as dashboard-v2)
+  AUTH_EMAIL_DOMAIN: 'quay1.local',  // username + PIN -> username@quay1.local (same as dashboard-v2)
+  // Apps Script /exec URL, deployed under the BOOKKEEPER's Google account, that
+  // creates draft emails to brokers with invoice PDFs attached (draft only, never sends).
+  // Deploy apps-script/Code.gs, then paste the /exec URL here. Empty = email disabled.
+  INVOICE_MAIL_ENDPOINT: ''
 };
