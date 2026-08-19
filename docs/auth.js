@@ -39,19 +39,22 @@
   }
 
   async function login(){
-    const email = $("#gEmail").value.trim(), pin = $("#gPin").value;
+    const username = $("#gEmail").value.trim().toLowerCase(), pin = $("#gPin").value;
     const err = $("#gErr"); err.textContent = '';
-    if(!email || !pin){ err.textContent = 'Enter email and PIN.'; return; }
+    if(!username || !pin){ err.textContent = 'Enter username and PIN.'; return; }
+    const email = `${username}@${cfg.AUTH_EMAIL_DOMAIN || 'quay1.local'}`;
     $("#gBtn").disabled = true; $("#gBtn").textContent = 'Signing in…';
     try{
       const { data, error } = await sb.auth.signInWithPassword({ email, password: pin });
-      if (error || !data.user) throw new Error('Email or PIN not recognised');
+      if (error || !data.user) throw new Error('Username or PIN not recognised');
       const staff = await checkStaff(data.user);
       if (!staff){ await sb.auth.signOut(); throw new Error('This tool is for superusers and payroll only.'); }
+      try{ localStorage.setItem('quay_brokerinv_user', username); }catch(e){}
       grant(staff);
     }catch(e){ err.textContent = e.message || 'Sign-in failed.'; }
     finally{ $("#gBtn").disabled = false; $("#gBtn").textContent = 'Sign in'; }
   }
+  try{ const lu = localStorage.getItem('quay_brokerinv_user'); if(lu) $("#gEmail").value = lu; }catch(e){}
 
   $("#gBtn").addEventListener('click', login);
   $("#gPin").addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
