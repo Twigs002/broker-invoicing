@@ -4,6 +4,7 @@
   const $ = s => document.querySelector(s);
   const LOGO = window.QUAY_LOGO || "";
   const LS_KEY = "quay_broker_dir_v1";
+  const LS_LAST = "quay_brokerinv_last";
   document.getElementById("hdrFlag").src = LOGO;
 
   let ROWS = [];        // parsed invoice line objects (kept lines only)
@@ -58,6 +59,8 @@
   const num = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g,"")); return isNaN(n)?0:Math.abs(n); };
   const fmtDate = v => { const m = String(v).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/); return m ? `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}` : String(v||""); };
   const money = n => "R" + n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  // On-screen figures: space thousands, dot decimals (per worksheet spec).
+  const moneyUI = n => "R " + n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/,/g," ");
 
   function ingest(text){
     const rows = parseCSV(text);
@@ -100,21 +103,91 @@
     if(rec){ $("#bkVat").value=rec.vat||""; $("#bkPostal").value=rec.postal||""; $("#bkDelivery").value=rec.delivery||""; if($("#bkEmail")) $("#bkEmail").value=rec.email||""; }
   }
 
-  /* ---------- UI flow ---------- */
-  function setStep(n){ [1,2,3,4].forEach(i=>{ const el=$("#s"+i); el.classList.toggle("on", i===n); el.classList.toggle("done", i<n); }); }
-  function show(id){ $(id).classList.remove("hidden"); }
+  /* ---------- paged wizard navigation ---------- */
+  let PAGE = 1, PARSED = false, SAVED = false;
+
+  function setCtx(){
+    const el = $("#ctx"); if(!el) return;
+    if(!PARSED){ el.textContent = "SAGE → Quay 1 tax invoices"; return; }
+    const broker = ($("#bkName") && $("#bkName").value.trim()) || "";
+    const parts = [];
+    if(SRC_FILE) parts.push(SRC_FILE);
+    if(PAGE>=2 && broker) parts.push(broker + " · " + activeRows().length + " lines");
+    el.textContent = parts.join("   —   ") || "SAGE → Quay 1 tax invoices";
+  }
+
+  function renderRail(){
+    for(let i=1;i<=4;i++){
+      const el = $("#r"+i); if(!el) continue;
+      el.classList.remove("current","done","todo");
+      if(i===PAGE) el.classList.add("current");
+      else if(i<PAGE) el.classList.add("done");
+      else el.classList.add("todo");
+    }
+    $("#railBatch").classList.toggle("hidden", !PARSED);
+  }
+
+  function renderFooter(){
+    const back = $("#wizBack"), next = $("#wizNext"), st = $("#wizStatus");
+    back.classList.toggle("hidden", PAGE===1);
+    const a = activeRows();
+    st.classList.remove("saved");
+    if(PAGE===1){
+      next.textContent = "Continue →"; next.disabled = !PARSED;
+      st.textContent = PARSED ? `${ROWS.length} line(s) ready` : "Waiting for a file";
+    } else if(PAGE===2){
+      next.textContent = "Continue →"; next.disabled = false;
+      st.textContent = ($("#bkName").value.trim() || "Broker") + " details";
+    } else if(PAGE===3){
+      next.textContent = "Continue →"; next.disabled = a.length===0;
+      st.textContent = `${a.length} invoice(s) · ${moneyUI(a.reduce((s,r)=>s+r.total,0))}`;
+    } else {
+      next.textContent = "Finish batch"; next.disabled = a.length===0;
+      if(SAVED){ st.textContent = "Saved to records"; st.classList.add("saved"); }
+      else st.textContent = "Not yet saved";
+    }
+  }
+
+  function gotoPage(n){
+    if(n>1 && !PARSED) return;
+    n = Math.max(1, Math.min(4, n));
+    PAGE = n;
+    for(let i=1;i<=4;i++) $("#page"+i).classList.toggle("on", i===n);
+    if(n===3) renderTable();
+    if(n===4) updateGen();
+    renderRail(); renderFooter(); setCtx();
+    const sc = document.querySelector(".sheet"); if(sc) sc.scrollTop = 0;
+  }
 
   function onParsed(res, filename){
     const pm = $("#parseMsg");
-    if(res.error){ pm.innerHTML = `<div class="banner warn" style="margin-top:12px">${res.error}</div>`; return; }
-    ROWS = res.rows; META = {siv:res.siv, paye:res.paye, kept:res.rows.length}; SRC_FILE = filename||"";
-    pm.innerHTML = `<div class="banner info" style="margin-top:12px">Loaded <b>${filename}</b> &middot; ${res.rows.length} invoice line(s) after filtering.</div>`;
+    if(res.error){ pm.innerHTML = `<div class="banner warn">${res.error}</div>`; return; }
+    ROWS = res.rows; META = {siv:res.siv, paye:res.paye, kept:res.rows.length}; SRC_FILE = filename||""; PARSED = true; SAVED = false;
+    pm.innerHTML = `<div class="fchip">✓ <b>${escapeHtml(filename)}</b> &middot; ${res.rows.length} line(s) after filtering</div>`;
     $("#bkName").value = res.supplier || "";
     loadBroker(res.supplier);
-    show("#cardBroker"); show("#cardReview"); show("#cardGen");
+    // review intro reflects what was filtered out
+    $("#reviewIntro").textContent = `Untick anything that shouldn't be invoiced, or edit a division inline. ${META.siv+META.paye} row(s) were removed by the filters.`;
     renderTable();
-    setStep(3);
-    $("#cardReview").scrollIntoView({behavior:"smooth",block:"start"});
+    renderRail(); renderFooter(); setCtx();
+    // record "last upload" for next visit
+    try{
+      const d = (res.rows[0] && res.rows[0].date) || "";
+      const label = d ? monthLabel(d) : "";
+      localStorage.setItem(LS_LAST, JSON.stringify({label, count:res.rows.length}));
+    }catch(e){}
+  }
+
+  function monthLabel(iso){
+    const m = String(iso).match(/(\d{4})-(\d{2})/); if(!m) return "";
+    const names=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${names[(+m[2])-1]||""} ${m[1]}`;
+  }
+  function showLastUpload(){
+    try{
+      const l = JSON.parse(localStorage.getItem(LS_LAST)||"null");
+      if(l && l.count) $("#lastUpload").textContent = `${l.label||"Previous"} · ${l.count} invoices`;
+    }catch(e){}
   }
 
   function renderTable(){
@@ -124,10 +197,10 @@
       tr.className = r.on?"":"off";
       tr.innerHTML =
         `<td><input type="checkbox" data-i="${i}" class="chkRow" ${r.on?"checked":""}></td>`+
-        `<td>${r.doc}</td><td>${r.date}</td>`+
+        `<td class="num">${r.doc}</td><td class="num">${r.date}</td>`+
         `<td><span class="divedit" contenteditable="true" data-i="${i}">${escapeHtml(r.division)}</span></td>`+
-        `<td class="num">${money(r.excl)}</td>`+
-        `<td class="num">${money(r.vat)}</td>`+
+        `<td class="num">${moneyUI(r.excl)}</td>`+
+        `<td class="num">${moneyUI(r.vat)}</td>`+
         `<td class="num"><input class="amt" data-i="${i}" value="${r.total.toFixed(2)}"></td>`;
       tb.appendChild(tr);
     });
@@ -143,12 +216,23 @@
     const a = activeRows();
     const tot = a.reduce((s,r)=>s+r.total,0);
     $("#stKeep").textContent = a.length;
-    $("#stTotal").textContent = money(tot);
+    $("#stTotal").textContent = moneyUI(tot);
     $("#stSiv").textContent = META.siv;
     $("#stPaye").textContent = META.paye;
-    $("#genCount").textContent = a.length ? `${a.length} invoice(s) ready` : "no lines selected";
+    $("#railInv").textContent = a.length;
+    $("#railTot").textContent = moneyUI(tot);
+    updateGen();
+    renderFooter();
+  }
+  function updateGen(){
+    const a = activeRows();
+    const tot = a.reduce((s,r)=>s+r.total,0);
+    $("#genInv").textContent = a.length;
+    $("#genTot").textContent = moneyUI(tot);
+    const gc = $("#genCount"); gc.textContent = a.length ? `${a.length} ready` : "no lines"; gc.classList.toggle("hidden", !PARSED);
     $("#btnZip").disabled = a.length===0;
     $("#btnPreview").disabled = a.length===0;
+    $("#btnSave").disabled = a.length===0;
   }
 
   /* ---------- invoice config from form ---------- */
@@ -239,27 +323,27 @@
     const a = activeRows(); if(!a.length) return;
     const doc = makeDoc(a[0], cfg());
     const url = doc.output("datauristring");
-    $("#preview").innerHTML = `<div class="muted" style="font-size:12px;margin-bottom:6px">Preview &middot; ${a[0].doc}</div>`+
-      `<iframe src="${url}" style="width:100%;height:640px;border:1px solid var(--line);border-radius:8px"></iframe>`;
-    $("#preview").scrollIntoView({behavior:"smooth",block:"start"});
+    $("#previewLabel").textContent = `Preview · ${a[0].doc}.pdf`;
+    $("#preview").innerHTML = `<iframe src="${url}" title="invoice preview"></iframe>`;
   });
 
   $("#btnZip").addEventListener("click", async ()=>{
     const a = activeRows(); if(!a.length) return;
     const C = cfg();
     const zip = new JSZip();
-    const pw = $("#progWrap"), pb = $("#progBar"); pw.classList.remove("hidden");
+    const pw = $("#progWrap"), pb = $("#progBar"), pc = $("#progCap");
+    pw.classList.remove("hidden"); pc.classList.remove("hidden");
     for(let i=0;i<a.length;i++){
       const doc = makeDoc(a[i], C);
       zip.file(`${a[i].doc}.pdf`, doc.output("blob"));
       pb.style.width = Math.round((i+1)/a.length*100)+"%";
+      pc.textContent = `${i+1} of ${a.length} PDFs rendered`;
       if(i%15===0) await new Promise(r=>setTimeout(r,0));
     }
     const blob = await zip.generateAsync({type:"blob"});
     const safe = (C.brokerName||"broker").replace(/[^\w]+/g,"_");
     downloadBlob(blob, `Invoices_${safe}.zip`);
-    setTimeout(()=>pw.classList.add("hidden"),800);
-    setStep(4);
+    setTimeout(()=>{ pw.classList.add("hidden"); pc.classList.add("hidden"); },1200);
   });
 
   function downloadBlob(blob,name){ const u=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),1500); }
@@ -270,7 +354,7 @@
     saveDir(name,{vat:$("#bkVat").value.trim(),postal:$("#bkPostal").value.trim(),delivery:$("#bkDelivery").value.trim(),email:($("#bkEmail")?$("#bkEmail").value.trim():"")});
     const m=$("#savedMsg"); m.classList.remove("hidden"); setTimeout(()=>m.classList.add("hidden"),1600);
   });
-  $("#bkName").addEventListener("change", e=>loadBroker(e.target.value));
+  $("#bkName").addEventListener("change", e=>{ loadBroker(e.target.value); setCtx(); });
 
   $("#chkAll").addEventListener("change", e=>{ ROWS.forEach(r=>r.on=e.target.checked); renderTable(); });
 
@@ -281,7 +365,20 @@
   ["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("hover");}));
   ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("hover");}));
   drop.addEventListener("drop", e=>{ const f=e.dataTransfer.files[0]; if(f) readFile(f); });
-  function readFile(f){ const rd=new FileReader(); rd.onload=()=>{ setStep(2); onParsed(ingest(rd.result), f.name); }; rd.readAsText(f); }
+  function readFile(f){ const rd=new FileReader(); rd.onload=()=>{ onParsed(ingest(rd.result), f.name); }; rd.readAsText(f); }
+
+  /* ---------- wizard controls ---------- */
+  $("#wizBack").addEventListener("click", ()=>gotoPage(PAGE-1));
+  $("#wizNext").addEventListener("click", ()=>{ if(PAGE<4) gotoPage(PAGE+1); else finishBatch(); });
+  document.querySelectorAll(".step").forEach(s=>s.addEventListener("click", ()=>{
+    const step = +s.dataset.step;
+    if(step < PAGE && PARSED) gotoPage(step);   // only completed steps are clickable
+  }));
+
+  async function finishBatch(){
+    const ok = await saveBatch();
+    if(ok){ const rt = document.querySelector('.tab[data-view="records"]'); if(rt) rt.click(); }
+  }
 
   /* ---------- save to records (Supabase) ---------- */
   // Build a full invoice cfg for a broker from the saved directory + page defaults.
@@ -296,9 +393,9 @@
   }
 
   async function saveBatch(){
-    const a = activeRows(); if(!a.length) return;
+    const a = activeRows(); if(!a.length) return false;
     const msg = $("#saveMsg"); const btn = $("#btnSave");
-    if(!window.sb){ msg.innerHTML='<div class="banner warn">Not signed in.</div>'; return; }
+    if(!window.sb){ msg.innerHTML='<div class="banner warn">Not signed in.</div>'; return false; }
     btn.disabled=true; btn.textContent="Saving…";
     try{
       let uid=null; try{ const u=await window.sb.auth.getUser(); uid=u&&u.data&&u.data.user?u.data.user.id:null; }catch(e){}
@@ -312,14 +409,20 @@
       }));
       const { error } = await window.sb.from("broker_invoices").upsert(payload, { onConflict:"doc_no" });
       if(error) throw error;
-      msg.innerHTML = `<div class="banner ok" style="margin-top:12px">Saved ${payload.length} invoice(s) to records for <b>${escapeHtml(broker)}</b>. View them under <b>Records &amp; history</b>.</div>`;
+      msg.innerHTML = `<div class="banner ok">Saved ${payload.length} invoice(s) for <b>${escapeHtml(broker)}</b>. See <b>Records</b>.</div>`;
       if(window.Records) window.Records.invalidate();
-      setStep(4);
+      SAVED = true; renderFooter();
+      return true;
     }catch(e){
-      msg.innerHTML = `<div class="banner warn" style="margin-top:12px">Couldn't save: ${escapeHtml(e.message||String(e))}</div>`;
+      msg.innerHTML = `<div class="banner warn">Couldn't save: ${escapeHtml(e.message||String(e))}</div>`;
+      return false;
     }finally{ btn.disabled=false; btn.textContent="Save to records"; }
   }
   $("#btnSave").addEventListener("click", saveBatch);
+
+  /* ---------- init ---------- */
+  showLastUpload();
+  renderRail(); renderFooter();
 
   // shared API for records.js (regenerating stored invoices) + tests
   window.Invoicing = { makeDoc, money, brokerCfg, downloadBlob, ingest, activeRows, get ROWS(){return ROWS;} };
