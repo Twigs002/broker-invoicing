@@ -1,3 +1,6 @@
 samples/
 docs/_sample.csv
 *.log
+
+.claude-flow/
+.agents/
