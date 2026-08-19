@@ -1,0 +1,326 @@
+/* SA Broker Invoicing — client-side SAGE CSV -> Quay 1 tax invoices */
+(function(){
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const LOGO = window.QUAY_LOGO || "";
+  const LS_KEY = "quay_broker_dir_v1";
+  document.getElementById("hdrFlag").src = LOGO;
+
+  let ROWS = [];        // parsed invoice line objects (kept lines only)
+  let META = {siv:0, paye:0, kept:0};
+  let SRC_FILE = "";    // filename of the current upload
+
+  /* ---------- CSV parsing (handles quotes, sep= line) ---------- */
+  function parseCSV(text){
+    text = text.replace(/^﻿/, "");
+    const lines = text.split(/\r\n|\n|\r/);
+    let start = 0;
+    if (lines[0] && /^sep=/i.test(lines[0].trim())) start = 1;
+    // find header
+    const rows = [];
+    let field = "", row = [], inQ = false;
+    // rejoin from start, parse char by char across the whole remainder
+    const body = lines.slice(start).join("\n");
+    for (let i=0;i<body.length;i++){
+      const c = body[i];
+      if (inQ){
+        if (c === '"'){
+          if (body[i+1] === '"'){ field+='"'; i++; }
+          else inQ = false;
+        } else field += c;
+      } else {
+        if (c === '"') inQ = true;
+        else if (c === ','){ row.push(field); field=""; }
+        else if (c === '\n'){ row.push(field); rows.push(row); row=[]; field=""; }
+        else field += c;
+      }
+    }
+    if (field.length || row.length){ row.push(field); rows.push(row); }
+    return rows.filter(r => r.length && r.some(v => v.trim() !== ""));
+  }
+
+  function colIndex(header){
+    const idx = {};
+    header.forEach((h,i)=>{ idx[h.trim().toLowerCase().replace(/\.$/,"")]=i; });
+    const pick = (...names)=>{ for(const n of names){ const k=n.toLowerCase(); if(k in idx) return idx[k]; } return -1; };
+    return {
+      date: pick("date"),
+      doc: pick("document no","document number","document no."),
+      desc: pick("supplier inv no","supplier invoice no","supplier inv. no","supplier inv. no."),
+      supplier: pick("supplier"),
+      excl: pick("exclusive"),
+      vat: pick("vat"),
+      total: pick("total purchases"),
+      out: pick("total outstanding")
+    };
+  }
+
+  const num = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g,"")); return isNaN(n)?0:Math.abs(n); };
+  const fmtDate = v => { const m = String(v).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/); return m ? `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}` : String(v||""); };
+  const money = n => "R" + n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  function ingest(text){
+    const rows = parseCSV(text);
+    if (rows.length < 2) return {error:"Couldn't read any rows from that file."};
+    const header = rows[0];
+    const c = colIndex(header);
+    if (c.doc < 0 || c.desc < 0){ return {error:"This doesn't look like a SAGE Supplier Invoices export (missing Document No. / Supplier Inv. No. columns)."}; }
+    const out = []; let siv=0, paye=0;
+    for (let r=1; r<rows.length; r++){
+      const row = rows[r];
+      const doc = (row[c.doc]||"").trim();
+      const desc = (row[c.desc]||"").trim();
+      if (!doc) continue;
+      if (/^SIV/i.test(doc)){ siv++; continue; }               // drop SIV
+      if (!/^INV/i.test(doc)) continue;                         // only INV docs
+      if (/^paye$/i.test(desc) || /interest/i.test(desc)){ paye++; continue; } // drop PAYE & Interest
+      out.push({
+        on:true,
+        doc, date: fmtDate(row[c.date]),
+        division: desc,
+        supplier: (row[c.supplier]||"").trim(),
+        excl: c.excl>=0? num(row[c.excl]) : 0,
+        vat:  c.vat>=0?  num(row[c.vat])  : 0,
+        total:c.total>=0?num(row[c.total]): (c.excl>=0?num(row[c.excl]):0),
+        out:  c.out>=0?  num(row[c.out])  : 0
+      });
+    }
+    return {rows:out, siv, paye, supplier: out.length?out[0].supplier:""};
+  }
+
+  /* ---------- broker directory (localStorage) ---------- */
+  const seed = {
+    "justin matthew nortier":{vat:"",postal:"",delivery:"606 Graceville, 102 Rosmead Avenue\nKenilworth, 7708"},
+    "nicholas strydom":{vat:"",postal:"3 Riesling Street\nOude Westhof\nCape Town\n7530",delivery:"3 Riesling Street\nOude Westhof\nCape Town\n7530"}
+  };
+  function dir(){ try{ return Object.assign({}, seed, JSON.parse(localStorage.getItem(LS_KEY)||"{}")); }catch(e){ return Object.assign({},seed); } }
+  function saveDir(name,rec){ const d=JSON.parse(localStorage.getItem(LS_KEY)||"{}"); d[name.trim().toLowerCase()]=rec; localStorage.setItem(LS_KEY,JSON.stringify(d)); }
+  function loadBroker(name){
+    const rec = dir()[(name||"").trim().toLowerCase()];
+    if(rec){ $("#bkVat").value=rec.vat||""; $("#bkPostal").value=rec.postal||""; $("#bkDelivery").value=rec.delivery||""; }
+  }
+
+  /* ---------- UI flow ---------- */
+  function setStep(n){ [1,2,3,4].forEach(i=>{ const el=$("#s"+i); el.classList.toggle("on", i===n); el.classList.toggle("done", i<n); }); }
+  function show(id){ $(id).classList.remove("hidden"); }
+
+  function onParsed(res, filename){
+    const pm = $("#parseMsg");
+    if(res.error){ pm.innerHTML = `<div class="banner warn" style="margin-top:12px">${res.error}</div>`; return; }
+    ROWS = res.rows; META = {siv:res.siv, paye:res.paye, kept:res.rows.length}; SRC_FILE = filename||"";
+    pm.innerHTML = `<div class="banner info" style="margin-top:12px">Loaded <b>${filename}</b> &middot; ${res.rows.length} invoice line(s) after filtering.</div>`;
+    $("#bkName").value = res.supplier || "";
+    loadBroker(res.supplier);
+    show("#cardBroker"); show("#cardReview"); show("#cardGen");
+    renderTable();
+    setStep(3);
+    $("#cardReview").scrollIntoView({behavior:"smooth",block:"start"});
+  }
+
+  function renderTable(){
+    const tb = $("#tbody"); tb.innerHTML="";
+    ROWS.forEach((r,i)=>{
+      const tr = document.createElement("tr");
+      tr.className = r.on?"":"off";
+      tr.innerHTML =
+        `<td><input type="checkbox" data-i="${i}" class="chkRow" ${r.on?"checked":""}></td>`+
+        `<td>${r.doc}</td><td>${r.date}</td>`+
+        `<td><span class="divedit" contenteditable="true" data-i="${i}">${escapeHtml(r.division)}</span></td>`+
+        `<td class="num">${money(r.excl)}</td>`+
+        `<td class="num">${money(r.vat)}</td>`+
+        `<td class="num"><input class="amt" data-i="${i}" value="${r.total.toFixed(2)}"></td>`;
+      tb.appendChild(tr);
+    });
+    tb.querySelectorAll(".chkRow").forEach(cb=>cb.addEventListener("change",e=>{ ROWS[+e.target.dataset.i].on=e.target.checked; e.target.closest("tr").classList.toggle("off",!e.target.checked); updateStats(); }));
+    tb.querySelectorAll(".divedit").forEach(el=>el.addEventListener("input",e=>{ ROWS[+e.target.dataset.i].division=e.target.textContent; }));
+    tb.querySelectorAll(".amt").forEach(el=>el.addEventListener("input",e=>{ ROWS[+e.target.dataset.i].total=num(e.target.value); updateStats(); }));
+    updateStats();
+  }
+  function escapeHtml(s){ return String(s).replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m])); }
+
+  function activeRows(){ return ROWS.filter(r=>r.on); }
+  function updateStats(){
+    const a = activeRows();
+    const tot = a.reduce((s,r)=>s+r.total,0);
+    $("#stKeep").textContent = a.length;
+    $("#stTotal").textContent = money(tot);
+    $("#stSiv").textContent = META.siv;
+    $("#stPaye").textContent = META.paye;
+    $("#genCount").textContent = a.length ? `${a.length} invoice(s) ready` : "no lines selected";
+    $("#btnZip").disabled = a.length===0;
+    $("#btnPreview").disabled = a.length===0;
+  }
+
+  /* ---------- invoice config from form ---------- */
+  function cfg(){
+    return {
+      brokerName: $("#bkName").value.trim(),
+      brokerVat: $("#bkVat").value.trim(),
+      brokerPostal: $("#bkPostal").value.trim(),
+      brokerDelivery: $("#bkDelivery").value.trim(),
+      chargeDesc: $("#chargeDesc").value.split(/\n/).map(s=>s.trim()).filter(Boolean),
+      sellerVat: $("#sellerVat").value.trim(),
+      sellerAddr: $("#sellerAddr").value.split(/\n/).map(s=>s.trim()).filter(Boolean)
+    };
+  }
+
+  /* ---------- PDF (matches INV0008156 template) ---------- */
+  function drawInvoice(doc, inv, C){
+    const { jsPDF } = window.jspdf;
+    const L=14, R=196, grey=[120,127,140], ink=[28,35,51];
+    const label=(t,x,y)=>{ doc.setFont("helvetica","bold").setFontSize(7.5).setTextColor(...grey); doc.text(t,x,y); };
+    const val=(t,x,y,sz,bold)=>{ doc.setFont("helvetica",bold?"bold":"normal").setFontSize(sz||9).setTextColor(...ink); doc.text(String(t),x,y); };
+
+    // Title + logo
+    doc.setFont("helvetica","bold").setFontSize(22).setTextColor(...ink); doc.text("TAX INVOICE", L, 22);
+    if(LOGO){ try{ doc.addImage(LOGO,"JPEG",132,10,64,64*184/300); }catch(e){} }
+
+    label("NUMBER:", L, 33); val(inv.doc, 44, 33, 9, true);
+    label("DATE:",   L, 39); val(inv.date, 44, 39, 9, true);
+
+    // FROM / TO
+    label("FROM", L, 60); label("TO", 110, 60);
+    val("IGCISA INVESTMENT HOLDINGS", L, 67, 11, true);
+    val("t/a Quay 1 International Realty", L, 72.5, 11, true);
+    val(C.brokerName || inv.supplier || "", 110, 67, 12, true);
+
+    label("VAT NO:", L, 84); val(C.sellerVat, 30, 84, 8.5);
+    label("CUSTOMER VAT NO:", 110, 84); val(C.brokerVat, 146, 84, 8.5);
+
+    // address columns
+    label("POSTAL ADDRESS:", L, 94); label("DELIVERY ADDRESS:", 50, 94);
+    label("POSTAL ADDRESS:", 110, 94); label("DELIVERY ADDRESS:", 150, 94);
+    const block=(lines,x,y)=>{ doc.setFont("helvetica","normal").setFontSize(8.5).setTextColor(...ink); (lines||[]).forEach((ln,i)=>doc.text(ln,x,y+i*4.4)); };
+    block(C.sellerAddr, L, 100); block(C.sellerAddr, 50, 100);
+    block(C.brokerPostal?C.brokerPostal.split(/\n/):[], 110, 100);
+    block(C.brokerDelivery?C.brokerDelivery.split(/\n/):[], 150, 100);
+
+    // table
+    let ty=128;
+    doc.setDrawColor(200,206,218).setLineWidth(0.3); doc.line(L,ty,R,ty);
+    doc.setFont("helvetica","italic").setFontSize(8.5).setTextColor(...grey);
+    doc.text("Description", L, ty+5); doc.text("Division", 86, ty+5);
+    doc.text("Unit Price", 168, ty+5, {align:"right"}); doc.text("Incl. Total", R, ty+5, {align:"right"});
+    doc.line(L,ty+8,R,ty+8);
+
+    let ry=ty+16;
+    doc.setFont("helvetica","normal").setFontSize(9).setTextColor(...ink);
+    doc.text(C.chargeDesc[0]||"Monthly broker charges for:", L, ry);
+    (C.chargeDesc.slice(1)).forEach((ln,i)=>doc.text(ln, L+8, ry+6+i*5));
+    const divLines = doc.splitTextToSize(inv.division||"", 74);
+    doc.text(divLines, 86, ry);
+    doc.text(money(inv.total), 168, ry, {align:"right"});
+    doc.text(money(inv.total), R, ry, {align:"right"});
+    doc.line(L, 205, R, 205);
+
+    // totals block
+    const ly=214, vx=R, lx=150;
+    doc.setFont("helvetica","normal").setFontSize(9).setTextColor(...grey);
+    doc.text("Sub Total:", lx, ly); doc.text("Total VAT:", lx, ly+6);
+    doc.setFont("helvetica","bold").setTextColor(...ink);
+    doc.text(money(inv.total), vx, ly, {align:"right"});
+    doc.text(money(inv.vat), vx, ly+6, {align:"right"});
+    doc.setFont("helvetica","normal").setTextColor(...grey); doc.text("Grand Total:", lx, ly+16);
+    doc.setFont("helvetica","bold").setTextColor(...ink).setFontSize(10);
+    doc.text(money(inv.total), vx, ly+16, {align:"right"});
+    doc.setFont("helvetica","bold").setFontSize(9).setTextColor(...grey); doc.text("BALANCE DUE", vx, ly+24, {align:"right"});
+    doc.setFontSize(12).setTextColor(...ink); doc.text(money(inv.out), vx, ly+31, {align:"right"});
+  }
+
+  function makeDoc(inv, C){
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:"mm", format:"a4"});
+    drawInvoice(doc, inv, C);
+    return doc;
+  }
+
+  /* ---------- actions ---------- */
+  $("#btnPreview").addEventListener("click", ()=>{
+    const a = activeRows(); if(!a.length) return;
+    const doc = makeDoc(a[0], cfg());
+    const url = doc.output("datauristring");
+    $("#preview").innerHTML = `<div class="muted" style="font-size:12px;margin-bottom:6px">Preview &middot; ${a[0].doc}</div>`+
+      `<iframe src="${url}" style="width:100%;height:640px;border:1px solid var(--line);border-radius:8px"></iframe>`;
+    $("#preview").scrollIntoView({behavior:"smooth",block:"start"});
+  });
+
+  $("#btnZip").addEventListener("click", async ()=>{
+    const a = activeRows(); if(!a.length) return;
+    const C = cfg();
+    const zip = new JSZip();
+    const pw = $("#progWrap"), pb = $("#progBar"); pw.classList.remove("hidden");
+    for(let i=0;i<a.length;i++){
+      const doc = makeDoc(a[i], C);
+      zip.file(`${a[i].doc}.pdf`, doc.output("blob"));
+      pb.style.width = Math.round((i+1)/a.length*100)+"%";
+      if(i%15===0) await new Promise(r=>setTimeout(r,0));
+    }
+    const blob = await zip.generateAsync({type:"blob"});
+    const safe = (C.brokerName||"broker").replace(/[^\w]+/g,"_");
+    downloadBlob(blob, `Invoices_${safe}.zip`);
+    setTimeout(()=>pw.classList.add("hidden"),800);
+    setStep(4);
+  });
+
+  function downloadBlob(blob,name){ const u=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),1500); }
+
+  /* ---------- broker save ---------- */
+  $("#saveBroker").addEventListener("click", ()=>{
+    const name=$("#bkName").value.trim(); if(!name) return;
+    saveDir(name,{vat:$("#bkVat").value.trim(),postal:$("#bkPostal").value.trim(),delivery:$("#bkDelivery").value.trim()});
+    const m=$("#savedMsg"); m.classList.remove("hidden"); setTimeout(()=>m.classList.add("hidden"),1600);
+  });
+  $("#bkName").addEventListener("change", e=>loadBroker(e.target.value));
+
+  $("#chkAll").addEventListener("change", e=>{ ROWS.forEach(r=>r.on=e.target.checked); renderTable(); });
+
+  /* ---------- file input / drop ---------- */
+  const drop=$("#drop"), file=$("#file");
+  drop.addEventListener("click", ()=>file.click());
+  file.addEventListener("change", e=>{ const f=e.target.files[0]; if(f) readFile(f); });
+  ["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("hover");}));
+  ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("hover");}));
+  drop.addEventListener("drop", e=>{ const f=e.dataTransfer.files[0]; if(f) readFile(f); });
+  function readFile(f){ const rd=new FileReader(); rd.onload=()=>{ setStep(2); onParsed(ingest(rd.result), f.name); }; rd.readAsText(f); }
+
+  /* ---------- save to records (Supabase) ---------- */
+  // Build a full invoice cfg for a broker from the saved directory + page defaults.
+  function brokerCfg(name){
+    const rec = dir()[(name||"").trim().toLowerCase()] || {};
+    return {
+      brokerName: name||"", brokerVat: rec.vat||"", brokerPostal: rec.postal||"", brokerDelivery: rec.delivery||"",
+      chargeDesc: ($("#chargeDesc").value||"").split(/\n/).map(s=>s.trim()).filter(Boolean),
+      sellerVat: $("#sellerVat").value.trim(),
+      sellerAddr: ($("#sellerAddr").value||"").split(/\n/).map(s=>s.trim()).filter(Boolean)
+    };
+  }
+
+  async function saveBatch(){
+    const a = activeRows(); if(!a.length) return;
+    const msg = $("#saveMsg"); const btn = $("#btnSave");
+    if(!window.sb){ msg.innerHTML='<div class="banner warn">Not signed in.</div>'; return; }
+    btn.disabled=true; btn.textContent="Saving…";
+    try{
+      let uid=null; try{ const u=await window.sb.auth.getUser(); uid=u&&u.data&&u.data.user?u.data.user.id:null; }catch(e){}
+      const broker = $("#bkName").value.trim();
+      const S = window.SESSION||{};
+      const payload = a.map(r=>({
+        doc_no:r.doc, broker_name: broker || r.supplier || "",
+        inv_date: r.date || null, division:r.division,
+        excl:+r.excl.toFixed(2), vat:+r.vat.toFixed(2), total:+r.total.toFixed(2), outstanding:+r.out.toFixed(2),
+        source_filename: SRC_FILE, created_by: uid, created_by_name: S.name||null
+      }));
+      const { error } = await window.sb.from("broker_invoices").upsert(payload, { onConflict:"doc_no" });
+      if(error) throw error;
+      msg.innerHTML = `<div class="banner ok" style="margin-top:12px">Saved ${payload.length} invoice(s) to records for <b>${escapeHtml(broker)}</b>. View them under <b>Records &amp; history</b>.</div>`;
+      if(window.Records) window.Records.invalidate();
+      setStep(4);
+    }catch(e){
+      msg.innerHTML = `<div class="banner warn" style="margin-top:12px">Couldn't save: ${escapeHtml(e.message||String(e))}</div>`;
+    }finally{ btn.disabled=false; btn.textContent="Save to records"; }
+  }
+  $("#btnSave").addEventListener("click", saveBatch);
+
+  // shared API for records.js (regenerating stored invoices) + tests
+  window.Invoicing = { makeDoc, money, brokerCfg, downloadBlob, ingest, activeRows, get ROWS(){return ROWS;} };
+})();

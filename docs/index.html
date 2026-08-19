@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SA Broker Invoicing &middot; Quay 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3D5BA6; --blue-d:#2c4685; --yellow:#FDC503; --sky:#98C5ED; --red:#D20A03;
+    --ink:#1c2333; --muted:#6b7385; --line:#e6e9f0; --bg:#f4f6fb; --card:#ffffff;
+    --ok:#1f9d55; --warn:#b7791f;
+    --shadow:0 1px 3px rgba(20,30,60,.08),0 8px 24px rgba(20,30,60,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Montserrat,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:var(--bg);font-size:14px;line-height:1.5}
+  a{color:var(--blue)}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px 80px}
+  header.top{background:var(--blue);color:#fff;padding:14px 0;box-shadow:var(--shadow)}
+  header.top .wrap{padding-bottom:0;display:flex;align-items:center;gap:14px}
+  header.top h1{font-size:19px;margin:0;font-weight:800;letter-spacing:.2px}
+  header.top .sub{font-size:12.5px;opacity:.85;font-weight:500}
+  .flag{width:38px;height:26px;border-radius:4px;object-fit:cover;background:#fff2}
+  .spacer{flex:1}
+  .who{font-size:12px;opacity:.9;text-align:right;line-height:1.3}
+  .who b{font-weight:700}
+  .lo{background:rgba(255,255,255,.14);border:0;color:#fff;font-family:inherit;font-weight:600;font-size:12px;padding:6px 12px;border-radius:8px;cursor:pointer}
+  .lo:hover{background:rgba(255,255,255,.26)}
+  .tabs{display:flex;gap:6px;margin:18px 0 4px}
+  .tab{border:1px solid var(--line);background:#fff;color:var(--muted);font-family:inherit;font-weight:700;font-size:13px;padding:9px 16px;border-radius:10px;cursor:pointer}
+  .tab.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .steps{display:flex;gap:8px;margin:18px 0 8px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted);background:#eef1f8;border:1px solid var(--line);padding:6px 12px;border-radius:999px}
+  .chip b{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#cfd6e6;color:#fff;font-size:11px}
+  .chip.on{color:var(--blue);background:#e7edfb;border-color:#c7d5f3} .chip.on b{background:var(--blue)}
+  .chip.done b{background:var(--ok)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:20px;margin:16px 0}
+  .card h2{font-size:15px;margin:0 0 4px;font-weight:700}
+  .card .hint{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+  .drop{border:2px dashed #c3ccdf;border-radius:12px;padding:34px 20px;text-align:center;cursor:pointer;transition:.15s;background:#fafbff}
+  .drop:hover,.drop.hover{border-color:var(--blue);background:#f0f4ff}
+  .drop .big{font-weight:700;font-size:15px} .drop .small{color:var(--muted);font-size:12.5px;margin-top:4px}
+  .btn{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:10px;padding:10px 16px;font-weight:700;font-size:13.5px;cursor:pointer;font-family:inherit;transition:.12s;background:var(--blue);color:#fff}
+  .btn:hover{background:var(--blue-d)} .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.ghost{background:#eef1f8;color:var(--ink);border:1px solid var(--line)} .btn.ghost:hover{background:#e3e8f4}
+  .btn.gold{background:var(--yellow);color:#3a2e00} .btn.gold:hover{filter:brightness(.96)}
+  .btn.sm{padding:6px 11px;font-size:12px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  label.f{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+  input.t,textarea.t,select.t{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-family:inherit;font-size:13.5px;color:var(--ink);background:#fff}
+  input.t:focus,textarea.t:focus,select.t:focus{outline:2px solid var(--sky);border-color:var(--sky)}
+  textarea.t{resize:vertical;min-height:64px}
+  .muted{color:var(--muted)}
+  .stat-row{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 2px}
+  .stat{flex:1;min-width:120px;background:#f7f9fe;border:1px solid var(--line);border-radius:11px;padding:12px 14px}
+  .stat .k{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .stat .v{font-size:20px;font-weight:800;margin-top:2px}
+  .stat.keep .v{color:var(--ok)} .stat.drop .v{color:var(--red)} .stat.tot .v{color:var(--blue)}
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:11px;margin-top:6px}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:720px}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{background:#f5f7fc;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr.off{opacity:.4} tr.off td .divedit{text-decoration:line-through}
+  tr.click{cursor:pointer} tr.click:hover{background:#f5f8ff}
+  .divedit{border:1px solid transparent;border-radius:6px;padding:3px 6px;min-width:220px;font-family:inherit;font-size:12.5px}
+  .divedit:focus{outline:none;border-color:var(--sky);background:#f0f7ff}
+  .amt{width:96px;border:1px solid var(--line);border-radius:6px;padding:4px 6px;text-align:right;font-variant-numeric:tabular-nums;font-family:inherit}
+  .foot{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-top:14px}
+  .banner{border-radius:10px;padding:10px 14px;font-size:12.5px;font-weight:500}
+  .banner.info{background:#eaf1ff;border:1px solid #cfe0ff;color:#204a9e}
+  .banner.warn{background:#fff6e6;border:1px solid #f6e3b0;color:#8a6400}
+  .banner.ok{background:#e9f8ef;border:1px solid #bfe8cf;color:#1a7a44}
+  .hidden{display:none}
+  .pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:#eef1f8;color:var(--muted)}
+  .prog{height:8px;background:#eef1f8;border-radius:999px;overflow:hidden;margin-top:8px} .prog>i{display:block;height:100%;width:0;background:var(--blue);transition:width .2s}
+  .savedmsg{font-size:11.5px;color:var(--ok);font-weight:600}
+  .flexspace{flex:1}
+  code.k{background:#eef1f8;border-radius:5px;padding:1px 6px;font-size:12px}
+  /* login gate */
+  #gate{position:fixed;inset:0;background:linear-gradient(160deg,#3D5BA6,#22376b);display:grid;place-items:center;z-index:9999}
+  #gate .box{background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.3);padding:30px;width:340px;max-width:92vw}
+  #gate img{width:120px;display:block;margin:0 auto 14px;border-radius:6px}
+  #gate h3{margin:0 0 2px;font-size:17px;text-align:center}
+  #gate p{margin:0 0 18px;text-align:center;color:var(--muted);font-size:12.5px}
+  #gate .err{color:var(--red);font-size:12.5px;font-weight:600;min-height:18px;margin-top:8px;text-align:center}
+  #app{filter:blur(3px);pointer-events:none}
+  #app.ready{filter:none;pointer-events:auto}
+  /* records breakdown */
+  .bkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:8px}
+  .bkcard{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff;cursor:pointer;transition:.12s}
+  .bkcard:hover{border-color:var(--blue);box-shadow:var(--shadow)}
+  .bkcard .n{font-weight:700;font-size:14px} .bkcard .m{color:var(--muted);font-size:12px;margin-top:2px}
+  .bkcard .t{font-size:19px;font-weight:800;color:var(--blue);margin-top:8px}
+  .monthhdr{display:flex;align-items:center;gap:10px;margin:18px 0 6px;font-weight:700;font-size:14px}
+  .monthhdr .pill{background:#e7edfb;color:var(--blue)}
+</style>
+</head>
+<body>
+
+<!-- LOGIN GATE -->
+<div id="gate">
+  <div class="box">
+    <img id="gateLogo" alt="Quay 1">
+    <h3>SA Broker Invoicing</h3>
+    <p>Superusers &amp; payroll only</p>
+    <label class="f">Email</label>
+    <input class="t" id="gEmail" type="email" autocomplete="username" placeholder="you@quay1.co.za">
+    <label class="f" style="margin-top:10px">PIN / password</label>
+    <input class="t" id="gPin" type="password" autocomplete="current-password" placeholder="&bull;&bull;&bull;&bull;">
+    <button class="btn" id="gBtn" style="width:100%;justify-content:center;margin-top:16px">Sign in</button>
+    <div class="err" id="gErr"></div>
+  </div>
+</div>
+
+<div id="app">
+<header class="top">
+  <div class="wrap">
+    <img class="flag brand-logo" id="hdrFlag" alt="">
+    <div>
+      <h1>SA Broker Invoicing</h1>
+      <div class="sub">SAGE supplier data &rarr; individual Quay 1 tax invoices</div>
+    </div>
+    <span class="spacer"></span>
+    <div class="who" id="who"></div>
+    <button class="lo" id="logout">Sign out</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="tabs">
+    <button class="tab on" id="tabNew" data-view="new">New invoices</button>
+    <button class="tab" id="tabRec" data-view="records">Records &amp; history</button>
+  </div>
+
+  <!-- ============ VIEW: NEW ============ -->
+  <div id="viewNew">
+    <div class="steps">
+      <span class="chip on" id="s1"><b>1</b> Upload SAGE CSV</span>
+      <span class="chip" id="s2"><b>2</b> Broker details</span>
+      <span class="chip" id="s3"><b>3</b> Review lines</span>
+      <span class="chip" id="s4"><b>4</b> Generate &amp; save</span>
+    </div>
+
+    <section class="card" id="cardUpload">
+      <h2>1. Upload the SAGE export</h2>
+      <p class="hint">SAGE &rarr; Reports &rarr; Supplier &rarr; Supplier Invoices (incl. supplier returns) &rarr; select supplier &rarr; date range &rarr; export CSV. Drop that file below.</p>
+      <div class="drop" id="drop">
+        <div class="big">Drop <code class="k">SupplierInvoicesReport.csv</code> here</div>
+        <div class="small">or click to choose a file &middot; parsing runs in your browser</div>
+        <input type="file" id="file" accept=".csv,text/csv" class="hidden">
+      </div>
+      <div id="parseMsg"></div>
+    </section>
+
+    <section class="card hidden" id="cardBroker">
+      <h2>2. Broker &amp; invoice details</h2>
+      <p class="hint">Broker name comes from the file. Address &amp; VAT aren't in SAGE &mdash; fill them once and they're saved on this machine for next time.</p>
+      <div class="grid2">
+        <div><label class="f">Broker (customer) name</label><input class="t" id="bkName" placeholder="e.g. Justin Matthew Nortier"></div>
+        <div><label class="f">Customer VAT no <span class="muted">(optional)</span></label><input class="t" id="bkVat" placeholder="leave blank if none"></div>
+        <div><label class="f">Broker postal address <span class="muted">(optional)</span></label><textarea class="t" id="bkPostal"></textarea></div>
+        <div><label class="f">Broker delivery address</label><textarea class="t" id="bkDelivery" placeholder="606 Graceville, 102 Rosmead Avenue&#10;Kenilworth, 7708"></textarea></div>
+      </div>
+      <div class="foot">
+        <div class="row" style="align-items:center">
+          <button class="btn ghost" id="saveBroker">Save broker details</button>
+          <span class="savedmsg hidden" id="savedMsg">Saved &#10003;</span>
+        </div>
+        <details style="font-size:12.5px">
+          <summary class="muted" style="cursor:pointer">Advanced: boilerplate &amp; seller</summary>
+          <div class="grid2" style="margin-top:12px">
+            <div><label class="f">Charges description (left column)</label><textarea class="t" id="chargeDesc">Monthly broker charges for:
+RM/LN
+Photography
+Pointer Boards
+Management Fees</textarea></div>
+            <div>
+              <label class="f">Seller VAT no</label><input class="t" id="sellerVat" value="4700273198">
+              <label class="f" style="margin-top:10px">Seller address</label>
+              <textarea class="t" id="sellerAddr">Unit 10, Portside Building
+Main Road
+Green Point
+Cape Town
+8001</textarea>
+            </div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="card hidden" id="cardReview">
+      <h2>3. Review the invoice lines</h2>
+      <p class="hint">Filters applied automatically: keep <b>INV</b> docs, drop <b>SIV</b>, drop <b>PAYE</b> &amp; <b>Interest</b>, and flip amounts to positive. Untick any line to skip it, or edit inline.</p>
+      <div class="stat-row">
+        <div class="stat keep"><div class="k">Invoices to create</div><div class="v" id="stKeep">0</div></div>
+        <div class="stat tot"><div class="k">Total value</div><div class="v" id="stTotal">R0.00</div></div>
+        <div class="stat drop"><div class="k">Removed (SIV)</div><div class="v" id="stSiv">0</div></div>
+        <div class="stat drop"><div class="k">Removed (PAYE/Interest)</div><div class="v" id="stPaye">0</div></div>
+      </div>
+      <div class="tablewrap">
+        <table id="tbl">
+          <thead><tr>
+            <th style="width:34px"><input type="checkbox" id="chkAll" checked></th>
+            <th>Invoice #</th><th>Date</th><th>Division / description</th>
+            <th class="num">Excl.</th><th class="num">VAT</th><th class="num">Total</th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card hidden" id="cardGen">
+      <h2>4. Generate &amp; save</h2>
+      <p class="hint">One branded Quay 1 tax invoice PDF per line (SAGE INV number reused). Saving records the batch so you can revisit it under Records &amp; history.</p>
+      <div class="row">
+        <button class="btn ghost" id="btnPreview">Preview first invoice</button>
+        <button class="btn gold" id="btnZip">Download all as ZIP</button>
+        <button class="btn" id="btnSave">Save to records</button>
+        <span class="flexspace"></span>
+        <span class="pill" id="genCount"></span>
+      </div>
+      <div class="prog hidden" id="progWrap"><i id="progBar"></i></div>
+      <div id="saveMsg"></div>
+      <div id="preview" style="margin-top:16px"></div>
+      <div class="banner info" style="margin-top:16px">
+        <b>Gmail drafts (next stage):</b> once these look right, drafts to each broker &mdash; sent from the <b>bookkeeper</b> account, draft only, never auto-sent &mdash; will be wired in. Needs broker email addresses.
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ VIEW: RECORDS ============ -->
+  <div id="viewRecords" class="hidden">
+    <section class="card">
+      <div class="row" style="align-items:center;justify-content:space-between">
+        <div>
+          <h2 style="margin:0">Records &amp; history</h2>
+          <p class="hint" style="margin:2px 0 0">Every saved invoice, filed by SAGE invoice date. Click a broker or a month to drill in and re-download.</p>
+        </div>
+        <button class="btn ghost sm" id="recReload">Refresh</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <div><label class="f">View</label>
+          <select class="t" id="recMode" style="width:200px">
+            <option value="broker">Per-broker breakdown</option>
+            <option value="month">By month</option>
+          </select>
+        </div>
+        <div><label class="f">Filter broker</label><input class="t" id="recBroker" placeholder="all brokers" list="brokerList"><datalist id="brokerList"></datalist></div>
+        <div><label class="f">Year</label><select class="t" id="recYear" style="width:120px"><option value="">all</option></select></div>
+      </div>
+      <div id="recBody" style="margin-top:8px"><p class="muted">Loading records&hellip;</p></div>
+    </section>
+  </div>
+
+  <p class="muted" style="font-size:11.5px;text-align:center;margin-top:24px">
+    Quay 1 International Realty &middot; supers &amp; payroll only &middot; records stored in Quay Supabase
+  </p>
+</div>
+</div><!-- /#app -->
+
+<script src="config.js"></script>
+<script src="logo.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://twigs002.github.io/quay-dashboard-v2/quay-nav.js" defer></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="records.js"></script>
+</body>
+</html>
