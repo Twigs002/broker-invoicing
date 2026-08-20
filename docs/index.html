@@ -233,6 +233,16 @@
     .genwrap{grid-template-columns:1fr}
     .previewcol{display:none}
   }
+  /* Phone: brand + Sign out on one row, view toggle drops to its own row. */
+  @media(max-width:600px){
+    header.top .bar{flex-wrap:wrap;gap:10px 12px;padding:10px 14px;min-height:0}
+    header.top h1{font-size:16px}
+    header.top .brand{flex:1 1 auto;min-width:0}
+    .spacer{display:none}
+    .who{display:none}
+    .viewtabs{order:3;flex:1 0 100%;justify-content:flex-start}
+    .lo{margin-left:auto}
+  }
 </style>
 </head>
 <body>
