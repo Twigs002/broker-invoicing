@@ -6,7 +6,7 @@
   const LOGO_PDF = window.QUAY_LOGO_PDF || "";        // raster logo for the PDF (jsPDF can't take SVG)
   const LS_KEY = "quay_broker_dir_v1";
   const LS_LAST = "quay_brokerinv_last";
-  document.getElementById("hdrFlag").src = LOGO;
+  document.getElementById("hdrFlag").src = "assets/quay1-logo-white.png";  // unified Quay 1 wordmark (LOGO flags kept for the login gate/PDF)
 
   let ROWS = [];        // parsed invoice line objects (kept lines only)
   let META = {siv:0, paye:0, kept:0};
