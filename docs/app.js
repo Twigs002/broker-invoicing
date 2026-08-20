@@ -324,12 +324,61 @@
   }
 
   /* ---------- actions ---------- */
-  $("#btnPreview").addEventListener("click", ()=>{
+  // Preview: one invoice = single pane; many = a side-by-side carousel you can step through.
+  let PV_IO = null;
+  function renderSlide(slide, row, C){
+    if(slide.dataset.rendered) return;
+    slide.dataset.rendered = "1";
+    try{
+      const url = makeDoc(row, C).output("datauristring");
+      slide.innerHTML = `<iframe src="${url}" title="${row.doc}"></iframe>`;
+    }catch(e){ slide.dataset.rendered = ""; slide.innerHTML = `<span class="ph">Couldn't render ${row.doc}</span>`; }
+  }
+  function showPreview(){
     const a = activeRows(); if(!a.length) return;
-    const doc = makeDoc(a[0], cfg());
-    const url = doc.output("datauristring");
-    $("#previewLabel").textContent = `Preview · ${a[0].doc}.pdf`;
-    $("#preview").innerHTML = `<iframe src="${url}" title="invoice preview"></iframe>`;
+    const C = cfg(), cv = $("#preview"), nav = $("#pvNav"), lbl = $("#previewLabel");
+    if(PV_IO){ PV_IO.disconnect(); PV_IO = null; }
+
+    if(a.length === 1){
+      nav.classList.add("hidden");
+      lbl.textContent = `Preview · ${a[0].doc}.pdf`;
+      cv.innerHTML = `<iframe src="${makeDoc(a[0], C).output("datauristring")}" title="invoice preview"></iframe>`;
+      return;
+    }
+
+    nav.classList.remove("hidden");
+    cv.innerHTML = `<div class="pvtrack" id="pvTrack">${
+      a.map((r,i)=>`<div class="pvslide" data-i="${i}"><span class="ph">${r.doc}&hellip;</span></div>`).join("")
+    }</div>`;
+    const track = $("#pvTrack"), slides = Array.from(track.children);
+    // lazy-render slides only as they come into view (fast for hundreds of invoices)
+    PV_IO = new IntersectionObserver(ents=>ents.forEach(en=>{
+      if(en.isIntersecting) renderSlide(en.target, a[+en.target.dataset.i], C);
+    }), { root: track, rootMargin: "0px 300px", threshold: 0.05 });
+    slides.forEach(s=>PV_IO.observe(s));
+
+    const curIdx = ()=>{ const w = track.clientWidth||1; return Math.min(a.length-1, Math.max(0, Math.round(track.scrollLeft/w))); };
+    const sync = ()=>{
+      const i = curIdx();
+      $("#pvCount").textContent = `${i+1} / ${a.length}`;
+      lbl.textContent = `Preview · ${a[i].doc}.pdf`;
+      $("#pvPrev").disabled = i===0;
+      $("#pvNext").disabled = i===a.length-1;
+    };
+    const jump = d=>{ const w=track.clientWidth; track.scrollTo({left:(curIdx()+d)*w, behavior:"smooth"}); };
+    track.addEventListener("scroll", sync);
+    $("#pvPrev").onclick = ()=>jump(-1);
+    $("#pvNext").onclick = ()=>jump(1);
+    renderSlide(slides[0], a[0], C);
+    sync();
+  }
+  $("#btnPreview").addEventListener("click", showPreview);
+  // arrow keys step the carousel while page 4 is showing it
+  document.addEventListener("keydown", e=>{
+    if(PAGE!==4 || $("#pvNav").classList.contains("hidden")) return;
+    const t = e.target; if(t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    if(e.key==="ArrowLeft"){ e.preventDefault(); $("#pvPrev").click(); }
+    else if(e.key==="ArrowRight"){ e.preventDefault(); $("#pvNext").click(); }
   });
 
   $("#btnZip").addEventListener("click", async ()=>{

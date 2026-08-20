@@ -165,11 +165,22 @@
   .progcap{font-size:12.5px;font-weight:600;color:var(--green)}
   .genactions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
   .notice{margin-top:18px;background:#FFF9E6;border:1px solid #F4E3AC;color:#6B5200;border-radius:var(--r-panel);padding:12px 16px;font-size:12px;line-height:1.5}
-  .previewcol .plabel{font-family:var(--font-num);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--label);margin-bottom:8px}
+  .previewcol .plabel{font-family:var(--font-num);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--label)}
+  .pvhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;min-height:26px}
+  .pvnav{display:flex;align-items:center;gap:6px}
+  .pvbtn{width:26px;height:26px;border:1px solid var(--line);background:#fff;border-radius:7px;cursor:pointer;font-size:16px;line-height:1;color:var(--blue);font-weight:700;display:grid;place-items:center;padding:0}
+  .pvbtn:hover{background:var(--chip-bg)}
+  .pvbtn:disabled{color:#C2C8D4;border-color:#EAEDF3;cursor:not-allowed;background:#fff}
+  .pvcount{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--muted);min-width:46px;text-align:center;white-space:nowrap}
   .previewcanvas{height:462px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:
      repeating-linear-gradient(135deg,#F3F5F9 0 9px,#EAEDF3 9px 18px);display:grid;place-items:center}
   .previewcanvas .ph{font-size:12.5px;color:var(--muted);font-family:var(--font-num)}
   .previewcanvas iframe{width:100%;height:100%;border:0;background:#fff}
+  /* carousel */
+  .pvtrack{display:flex;width:100%;height:100%;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-behavior:smooth;gap:10px;scrollbar-width:thin}
+  .pvslide{flex:0 0 100%;height:100%;scroll-snap-align:center;display:grid;place-items:center;background:#fff;border-radius:6px;overflow:hidden}
+  .pvslide iframe{width:100%;height:100%;border:0;background:#fff}
+  .pvslide .ph{font-size:12px;color:var(--muted);font-family:var(--font-num)}
 
   /* banners (shared with records) */
   .banner{border-radius:var(--r-ctrl);padding:10px 14px;font-size:12.5px;font-weight:500;margin-top:12px}
@@ -392,7 +403,14 @@ Cape Town
                 </div>
               </div>
               <div class="previewcol">
-                <div class="plabel" id="previewLabel">Preview</div>
+                <div class="pvhead">
+                  <div class="plabel" id="previewLabel">Preview</div>
+                  <div class="pvnav hidden" id="pvNav">
+                    <button class="pvbtn" id="pvPrev" type="button" aria-label="Previous invoice" title="Previous (←)">&lsaquo;</button>
+                    <span class="pvcount" id="pvCount">1 / 1</span>
+                    <button class="pvbtn" id="pvNext" type="button" aria-label="Next invoice" title="Next (→)">&rsaquo;</button>
+                  </div>
+                </div>
                 <div class="previewcanvas" id="preview"><span class="ph">Preview first to render invoice 1</span></div>
               </div>
             </div>
