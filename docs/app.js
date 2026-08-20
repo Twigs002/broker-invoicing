@@ -2,7 +2,8 @@
 (function(){
   "use strict";
   const $ = s => document.querySelector(s);
-  const LOGO = window.QUAY_LOGO || "";
+  const LOGO = window.QUAY_LOGO || "";               // header/gate mark (flags SVG)
+  const LOGO_PDF = window.QUAY_LOGO_PDF || "";        // raster logo for the PDF (jsPDF can't take SVG)
   const LS_KEY = "quay_broker_dir_v1";
   const LS_LAST = "quay_brokerinv_last";
   document.getElementById("hdrFlag").src = LOGO;
@@ -260,8 +261,8 @@
     const val=(t,x,y,sz,bold)=>{ doc.setFont("helvetica",bold?"bold":"normal").setFontSize(sz||9).setTextColor(...ink); doc.text(String(t),x,y); };
 
     // Title + logo
-    doc.setFont("helvetica","bold").setFontSize(22).setTextColor(...ink); doc.text("TAX INVOICE", L, 22);
-    if(LOGO){ try{ doc.addImage(LOGO,"JPEG",132,10,64,64*184/300); }catch(e){} }
+    doc.setFont("helvetica","bold").setFontSize(22).setTextColor(...ink); doc.text("INVOICE", L, 22);
+    if(LOGO_PDF){ try{ doc.addImage(LOGO_PDF,"JPEG",132,10,64,64*184/300); }catch(e){} }
 
     label("NUMBER:", L, 33); val(inv.doc, 44, 33, 9, true);
     label("DATE:",   L, 39); val(inv.date, 44, 39, 9, true);
