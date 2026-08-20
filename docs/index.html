@@ -27,12 +27,12 @@
   .hidden{display:none !important}
 
   /* ---------- header ---------- */
-  header.top{background:var(--blue);color:#fff}
-  header.top .bar{display:flex;align-items:center;gap:16px;padding:12px 26px}
+  header.top{background:var(--blue);color:#fff;border-bottom:1px solid var(--line)}
+  header.top .bar{display:flex;align-items:center;gap:16px;padding:0 26px;min-height:80px}
   header.top .brand{display:flex;align-items:center;gap:12px;cursor:pointer}
-  .flag{height:30px;width:auto;border-radius:3px;display:block;background:#ffffff22}
+  .flag{height:45px;width:auto;display:block}
   header.top h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.2px;line-height:1.1}
-  header.top .ctx{font-family:var(--font-num);font-size:11.5px;color:#ffffffcc;margin-top:2px;font-weight:400}
+  header.top .ctx{font-family:var(--font-num);font-size:11.5px;color:#fff;margin-top:2px;font-weight:400}
   .spacer{flex:1}
   .viewtabs{display:flex;gap:4px;background:#ffffff1f;padding:3px;border-radius:var(--r-chip)}
   .viewtabs .tab{border:0;background:transparent;color:#ffffffcc;font-family:inherit;font-weight:600;font-size:12px;padding:6px 14px;border-radius:var(--r-chip);cursor:pointer}
@@ -65,7 +65,7 @@
   .railbatch .cap{font-family:var(--font-num);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--label)}
   .railbatch .l{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px}
   .railbatch .l .k{font-size:12px;color:var(--muted)}
-  .railbatch .l .v{font-family:var(--font-num);font-weight:600}
+  .railbatch .l .v{font-family:var(--font-num);font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
   .railbatch .tot{color:var(--blue);font-size:16px}
 
   /* sheet column */
@@ -135,7 +135,7 @@
   .statstrip .cell{flex:1;padding:14px 18px;border-right:1px solid var(--line)}
   .statstrip .cell:last-child{border-right:0}
   .statstrip .cap{font-family:var(--font-num);font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--label)}
-  .statstrip .v{font-family:var(--font-num);font-size:22px;font-weight:600;margin-top:4px;white-space:nowrap}
+  .statstrip .v{font-family:var(--font-num);font-size:22px;font-weight:600;margin-top:4px;white-space:nowrap;font-variant-numeric:tabular-nums}
   .statstrip .cell.keep .v{color:var(--green)}
   .statstrip .cell.rem .v{color:var(--muted)}
   .tablewrap{overflow-x:auto;border-top:1px solid var(--line)}
@@ -157,7 +157,7 @@
   .sumfig .l{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line-soft)}
   .sumfig .l:last-child{border-bottom:0}
   .sumfig .k{font-size:12.5px;color:var(--muted)}
-  .sumfig .v{font-family:var(--font-num);font-size:20px;font-weight:600;white-space:nowrap}
+  .sumfig .v{font-family:var(--font-num);font-size:20px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
   .sumfig .v.tot{color:var(--blue)}
   .sumfig .v.mini{font-size:13px;color:var(--muted)}
   .prog{height:7px;background:var(--line-soft);border-radius:var(--r-chip);overflow:hidden;margin:16px 0 6px}

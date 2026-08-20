@@ -59,8 +59,12 @@
   const num = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g,"")); return isNaN(n)?0:Math.abs(n); };
   const fmtDate = v => { const m = String(v).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/); return m ? `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}` : String(v||""); };
   const money = n => "R" + n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-  // On-screen figures: space thousands, dot decimals (per worksheet spec).
-  const moneyUI = n => "R " + n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/,/g," ");
+  // On-screen figures: manual grouping — space thousands, dot decimals (R 15 502.00) per worksheet spec.
+  const moneyUI = n => {
+    const neg = n < 0; const [whole, dec] = Math.abs(n).toFixed(2).split(".");
+    const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return (neg ? "-R " : "R ") + grouped + "." + dec;
+  };
 
   function ingest(text){
     const rows = parseCSV(text);
