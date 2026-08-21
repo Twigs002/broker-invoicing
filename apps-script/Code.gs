@@ -12,6 +12,13 @@
  *   4. Authorise (it needs Gmail draft access).
  *   5. Copy the /exec URL -> paste into docs/config.js INVOICE_MAIL_ENDPOINT.
  *
+ * SHARED SECRET (recommended) - the deployment must be "Anyone" (Apps Script has
+ *   no per-user auth for web apps), so protect it with a shared token:
+ *   Project Settings -> Script properties -> add  SHARED_SECRET = <a long random string>.
+ *   Put the SAME string in docs/config.js INVOICE_MAIL_TOKEN. When SHARED_SECRET is
+ *   set, requests without a matching token are rejected. If it is unset, the endpoint
+ *   stays open (backward compatible) - set it to turn enforcement on.
+ *
  * SENDER IDENTITY - brokers see SENDER_NAME as the "from" name.
  *   Route B (default, no setup): leave SEND_AS = ''. Drafts send from the
  *     bookkeeper's own address but show "Quay 1 Invoicing" as the name.
@@ -31,6 +38,14 @@ var SEND_AS = '';                       // '' = send from bookkeeper; or 'invoic
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents || '{}');
+
+    // Shared-secret gate. When SHARED_SECRET is set as a Script Property, the
+    // caller must send a matching `token`. Unset = open (backward compatible).
+    var secret = PropertiesService.getScriptProperties().getProperty('SHARED_SECRET');
+    if (secret && String(body.token || '') !== secret) {
+      return json({ ok: false, error: 'Unauthorized.' });
+    }
+
     var to = String(body.to || '').trim();
     var broker = String(body.brokerName || 'Broker').trim();
     var invoices = Array.isArray(body.invoices) ? body.invoices : [];
@@ -71,7 +86,10 @@ function doPost(e) {
   }
 }
 
-function doGet() { return json({ ok: true, service: 'sa-broker-invoicing-mailer' }); }
+function doGet() {
+  var secret = PropertiesService.getScriptProperties().getProperty('SHARED_SECRET');
+  return json({ ok: true, service: 'sa-broker-invoicing-mailer', tokenRequired: !!secret });
+}
 
 function json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);

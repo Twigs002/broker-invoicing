@@ -166,8 +166,9 @@
       return { doc:inv.doc, filename:`${inv.doc}.pdf`, total:inv.total, date:inv.date, pdfBase64: pdf.output("datauristring").split(",")[1] };
     });
     try{
+      const token=((window.QUAY_CFG||{}).INVOICE_MAIL_TOKEN||"").trim();
       const res=await fetch(ep,{ method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({ to:C.brokerEmail, brokerName:broker, invoices, createdBy:(window.SESSION&&window.SESSION.name)||"" }) });
+        body: JSON.stringify({ token, to:C.brokerEmail, brokerName:broker, invoices, createdBy:(window.SESSION&&window.SESSION.name)||"" }) });
       const out=await res.json().catch(()=>({}));
       if(out && out.ok) toast(`Draft created for ${broker} (${invoices.length} invoice${invoices.length>1?"s":""}) — review & send from the bookkeeper's Gmail.`,"ok");
       else toast("Draft failed: "+((out&&out.error)||("HTTP "+res.status)),"err");
