@@ -6,5 +6,10 @@ window.QUAY_CFG = {
   // Apps Script /exec URL, deployed under the BOOKKEEPER's Google account, that
   // creates draft emails to brokers with invoice PDFs attached (draft only, never sends).
   // Deploy apps-script/Code.gs, then paste the /exec URL here. Empty = email disabled.
-  INVOICE_MAIL_ENDPOINT: ''
+  INVOICE_MAIL_ENDPOINT: '',
+  // Shared secret guarding the endpoint. Must match the SHARED_SECRET Script
+  // Property on the Apps Script deployment. Leave '' only if the script has no
+  // SHARED_SECRET set. Note: this is client-visible; it is a bot/URL-scanner
+  // barrier, not a cryptographic secret. Rotate by updating both places.
+  INVOICE_MAIL_TOKEN: ''
 };
