@@ -37,6 +37,12 @@
   .hdr-titles{display:flex;flex-direction:column;line-height:1.15}
   header.top h1{font-size:var(--hdr-title);margin:0;font-weight:800;letter-spacing:.04em;line-height:1.1;text-transform:uppercase}
   header.top .ctx{font-family:var(--font-ui);font-size:13px;color:rgba(255,255,255,.78);margin-top:2px;font-weight:500}
+  .hdr-titlerow{display:flex;align-items:center;gap:12px}
+  /* entity pill toggle (Quay 1 / Active) — sits next to the Broker Invoicing title */
+  .entity-toggle{display:inline-flex;gap:2px;background:rgba(255,255,255,.18);padding:2px;border-radius:var(--r-chip);cursor:default}
+  .entity-toggle .et-opt{border:0;background:transparent;color:#ffffffcc;font-family:inherit;font-weight:700;font-size:11px;letter-spacing:.02em;padding:4px 12px;border-radius:var(--r-chip);cursor:pointer;transition:.12s;text-transform:none}
+  .entity-toggle .et-opt:hover{color:#fff}
+  .entity-toggle .et-opt.on{background:#fff;color:var(--blue)}
   .spacer{flex:1}
   .viewtabs{display:flex;gap:4px;background:#ffffff1f;padding:3px;border-radius:var(--r-chip)}
   .viewtabs .tab{border:0;background:transparent;color:#ffffffcc;font-family:inherit;font-weight:600;font-size:12px;padding:6px 14px;border-radius:var(--r-chip);cursor:pointer}
@@ -269,7 +275,13 @@
       <img class="flag brand-logo" id="hdrFlag" src="assets/quay1-logo-white.png" alt="Quay 1 International Realty">
       <span class="hdr-divider" aria-hidden="true"></span>
       <div class="hdr-titles">
-        <h1>Broker Invoicing</h1>
+        <div class="hdr-titlerow">
+          <h1>Broker Invoicing</h1>
+          <div class="entity-toggle" role="group" aria-label="Switch entity" title="Switch entity" onclick="event.stopPropagation()">
+            <button type="button" class="et-opt" data-entity-key="quay1">Quay 1</button>
+            <button type="button" class="et-opt" data-entity-key="active">Active</button>
+          </div>
+        </div>
         <div class="ctx" id="ctx">SAGE &rarr; Quay 1 tax invoices</div>
       </div>
     </div>
@@ -475,14 +487,13 @@ Cape Town
     </section>
   </div>
 
-  <p class="muted" style="font-size:11.5px;text-align:center;margin-top:20px">
-    Quay 1 International Realty &middot; supers &amp; payroll only &middot; records stored in Quay Supabase
-  </p>
 </div>
 </div><!-- /#app -->
 
 <script src="config.js"></script>
 <script src="logo.js"></script>
+<script src="logo-active.js"></script>
+<script src="entity.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>

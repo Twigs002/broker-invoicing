@@ -11,8 +11,10 @@
 
   async function fetchAll(){
     if(!window.sb) return [];
+    const entity = (window.QUAY_ENTITY && window.QUAY_ENTITY.key) || "quay1";
     const { data, error } = await window.sb.from("broker_invoices")
       .select("doc_no,broker_name,inv_date,division,excl,vat,total,outstanding,source_filename,created_at")
+      .eq("entity", entity)                 // keep Quay 1 and Active records fully separate
       .order("inv_date",{ascending:false}).limit(20000);
     if(error){ throw error; }
     return data||[];
@@ -154,25 +156,41 @@
     window.Invoicing.downloadBlob(pdf.output("blob"), `${inv.doc}.pdf`);
   }
 
-  // Create a Gmail DRAFT (via the bookkeeper Apps Script endpoint) with invoice PDFs attached.
+  // Post a SINGLE invoice to the current entity's Apps Script endpoint as one Gmail draft.
+  async function sendOneDraft(inv, broker, C, ep, token){
+    const pdf=window.Invoicing.makeDoc(inv, C);
+    const body=JSON.stringify({ token, to:C.brokerEmail, brokerName:broker,
+      invoices:[{ doc:inv.doc, filename:`${inv.doc}.pdf`, total:inv.total, date:inv.date, pdfBase64: pdf.output("datauristring").split(",")[1] }],
+      createdBy:(window.SESSION&&window.SESSION.name)||"" });
+    const res=await fetch(ep,{ method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body });
+    const out=await res.json().catch(()=>({}));
+    if(out && out.ok) return { ok:true };
+    return { ok:false, error:(out&&out.error)||("HTTP "+res.status) };
+  }
+
+  // Create Gmail DRAFTS via the CURRENT ENTITY's Apps Script endpoint (Active -> bookkeeper,
+  // Quay 1 -> payroll). ALWAYS one draft per invoice — invoices are never bundled into a
+  // single email (each broker's invoice stays its own, isolated message).
   async function emailInvoices(rows, broker){
-    const ep=((window.QUAY_CFG||{}).INVOICE_MAIL_ENDPOINT||"").trim();
+    const m=(window.QUAY_ENTITY && window.QUAY_ENTITY.mail) || {};
+    const ep=(m.endpoint||"").trim();
+    const token=(m.token||"").trim();
+    const label=(window.QUAY_ENTITY && window.QUAY_ENTITY.label) || "";
+    const mailbox=m.senderLabel || "the sending";
     const C=window.Invoicing.brokerCfg(broker);
-    if(!ep){ toast("Email drafts aren't set up yet — the bookkeeper's Apps Script endpoint isn't configured in config.js.","err"); return; }
+    if(!ep){ toast(`Email drafts aren't set up for ${label||"this entity"} yet — its Apps Script endpoint isn't configured in config.js.`,"err"); return; }
     if(!C.brokerEmail){ toast(`No email saved for ${broker}. Add it on the New invoices tab (Broker email) → Save broker details.`,"err"); return; }
-    toast(`Building draft for ${broker}…`);
-    const invoices=rowsToInvoices(rows).map(inv=>{
-      const pdf=window.Invoicing.makeDoc(inv, C);
-      return { doc:inv.doc, filename:`${inv.doc}.pdf`, total:inv.total, date:inv.date, pdfBase64: pdf.output("datauristring").split(",")[1] };
-    });
-    try{
-      const token=((window.QUAY_CFG||{}).INVOICE_MAIL_TOKEN||"").trim();
-      const res=await fetch(ep,{ method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({ token, to:C.brokerEmail, brokerName:broker, invoices, createdBy:(window.SESSION&&window.SESSION.name)||"" }) });
-      const out=await res.json().catch(()=>({}));
-      if(out && out.ok) toast(`Draft created for ${broker} (${invoices.length} invoice${invoices.length>1?"s":""}) — review & send from the bookkeeper's Gmail.`,"ok");
-      else toast("Draft failed: "+((out&&out.error)||("HTTP "+res.status)),"err");
-    }catch(e){ toast("Draft failed: "+(e.message||e),"err"); }
+    const invs=rowsToInvoices(rows);
+    let ok=0, fail=0, firstErr="";
+    for(let i=0;i<invs.length;i++){
+      toast(`Drafting ${i+1}/${invs.length} for ${broker}…`);
+      try{
+        const r=await sendOneDraft(invs[i], broker, C, ep, token);
+        if(r.ok) ok++; else { fail++; firstErr=firstErr||r.error; }
+      }catch(e){ fail++; firstErr=firstErr||(e.message||String(e)); }
+    }
+    if(fail===0) toast(`${ok} draft${ok===1?"":"s"} created for ${broker} (one per invoice) — review & send from ${mailbox} Gmail.`,"ok");
+    else toast(`${broker}: ${ok} draft(s) ok, ${fail} failed. First error: ${firstErr}`,"err");
   }
 
   function wire(body){

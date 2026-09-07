@@ -6,7 +6,9 @@
   const LOGO_PDF = window.QUAY_LOGO_PDF || "";        // raster logo for the PDF (jsPDF can't take SVG)
   const LS_KEY = "quay_broker_dir_v1";
   const LS_LAST = "quay_brokerinv_last";
-  document.getElementById("hdrFlag").src = "assets/quay1-logo-white.png";  // unified Quay 1 wordmark (LOGO flags kept for the login gate/PDF)
+  // Header/gate wordmark is set by entity.js (per active entity). LOGO/LOGO_PDF flags kept for fallback.
+  const ENT = () => window.QUAY_ENTITY || null;
+  const entInvoice = () => (ENT() && ENT().invoice) || {};
 
   let ROWS = [];        // parsed invoice line objects (kept lines only)
   let META = {siv:0, paye:0, kept:0};
@@ -113,12 +115,13 @@
 
   function setCtx(){
     const el = $("#ctx"); if(!el) return;
-    if(!PARSED){ el.textContent = "SAGE → Quay 1 tax invoices"; return; }
+    const idle = (ENT() && ENT().cfg && ENT().cfg.ctx) || "SAGE → tax invoices";
+    if(!PARSED){ el.textContent = idle; return; }
     const broker = ($("#bkName") && $("#bkName").value.trim()) || "";
     const parts = [];
     if(SRC_FILE) parts.push(SRC_FILE);
     if(PAGE>=2 && broker) parts.push(broker + " · " + activeRows().length + " lines");
-    el.textContent = parts.join("   —   ") || "SAGE → Quay 1 tax invoices";
+    el.textContent = parts.join("   —   ") || idle;
   }
 
   function renderRail(){
@@ -260,17 +263,24 @@
     const label=(t,x,y)=>{ doc.setFont("helvetica","bold").setFontSize(7.5).setTextColor(...grey); doc.text(t,x,y); };
     const val=(t,x,y,sz,bold)=>{ doc.setFont("helvetica",bold?"bold":"normal").setFontSize(sz||9).setTextColor(...ink); doc.text(String(t),x,y); };
 
+    const EI = entInvoice();
+
     // Title + logo
     doc.setFont("helvetica","bold").setFontSize(22).setTextColor(...ink); doc.text("INVOICE", L, 22);
-    if(LOGO_PDF){ try{ doc.addImage(LOGO_PDF,"JPEG",132,10,64,64*184/300); }catch(e){} }
+    const logoData = (ENT() && ENT().logoPdf()) || LOGO_PDF;
+    const logoBox = EI.logoPdfBox || {x:132,y:10,w:64,h:64*184/300};
+    if(logoData){ try{
+      const fmt = /^data:image\/png/i.test(logoData) ? "PNG" : "JPEG";
+      doc.addImage(logoData, fmt, logoBox.x, logoBox.y, logoBox.w, logoBox.h);
+    }catch(e){} }
 
     label("NUMBER:", L, 33); val(inv.doc, 44, 33, 9, true);
     label("DATE:",   L, 39); val(inv.date, 44, 39, 9, true);
 
-    // FROM / TO
+    // FROM / TO  (issuer is per-entity)
     label("FROM", L, 60); label("TO", 110, 60);
-    val("IGCISA INVESTMENT HOLDINGS", L, 67, 11, true);
-    val("t/a Quay 1 International Realty", L, 72.5, 11, true);
+    val(EI.issuer || "IGCISA INVESTMENT HOLDINGS", L, 67, 11, true);
+    val(EI.tradeAs || "t/a Quay 1 International Realty", L, 72.5, 11, true);
     val(C.brokerName || inv.supplier || "", 110, 67, 12, true);
 
     label("VAT NO:", L, 84); val(C.sellerVat, 30, 84, 8.5);
@@ -314,6 +324,14 @@
     doc.text(money(inv.total), vx, ly+16, {align:"right"});
     doc.setFont("helvetica","bold").setFontSize(9).setTextColor(...grey); doc.text("BALANCE DUE", vx, ly+24, {align:"right"});
     doc.setFontSize(12).setTextColor(...ink); doc.text(money(inv.out), vx, ly+31, {align:"right"});
+
+    // Banking details (per-entity; bottom-left, left of the totals column). Quay 1 has none.
+    const bank = EI.banking || [];
+    if(bank.length){
+      doc.setFont("helvetica","bold").setFontSize(8).setTextColor(...grey); doc.text("Banking Details:", L, ly);
+      doc.setFont("helvetica","normal").setFontSize(8).setTextColor(...ink);
+      bank.forEach((ln,i)=>doc.text(String(ln), L, ly+5+i*4.2));
+    }
   }
 
   function makeDoc(inv, C){
@@ -455,13 +473,14 @@
       let uid=null; try{ const u=await window.sb.auth.getUser(); uid=u&&u.data&&u.data.user?u.data.user.id:null; }catch(e){}
       const broker = $("#bkName").value.trim();
       const S = window.SESSION||{};
+      const entity = (ENT() && ENT().key) || "quay1";
       const payload = a.map(r=>({
         doc_no:r.doc, broker_name: broker || r.supplier || "",
         inv_date: r.date || null, division:r.division,
         excl:+r.excl.toFixed(2), vat:+r.vat.toFixed(2), total:+r.total.toFixed(2), outstanding:+r.out.toFixed(2),
-        source_filename: SRC_FILE, created_by: uid, created_by_name: S.name||null
+        source_filename: SRC_FILE, entity: entity, created_by: uid, created_by_name: S.name||null
       }));
-      const { error } = await window.sb.from("broker_invoices").upsert(payload, { onConflict:"doc_no" });
+      const { error } = await window.sb.from("broker_invoices").upsert(payload, { onConflict:"entity,doc_no" });
       if(error) throw error;
       msg.innerHTML = `<div class="banner ok">Saved ${payload.length} invoice(s) for <b>${escapeHtml(broker)}</b>. See <b>Records</b>.</div>`;
       if(window.Records) window.Records.invalidate();
@@ -475,6 +494,13 @@
   $("#btnSave").addEventListener("click", saveBatch);
 
   /* ---------- init ---------- */
+  // Prefill the worksheet's seller VAT / address from the active entity's defaults
+  // (Active carries these; Quay 1 leaves them for the operator to type).
+  (function prefillSeller(){
+    const EI = entInvoice();
+    if(EI.sellerVat && $("#sellerVat") && !$("#sellerVat").value) $("#sellerVat").value = EI.sellerVat;
+    if(EI.sellerAddr && $("#sellerAddr") && !$("#sellerAddr").value) $("#sellerAddr").value = EI.sellerAddr;
+  })();
   showLastUpload();
   renderRail(); renderFooter();
 
