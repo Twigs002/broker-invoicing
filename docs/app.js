@@ -59,7 +59,9 @@
     };
   }
 
-  const num = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g,"")); return isNaN(n)?0:Math.abs(n); };
+  // Preserve sign: credit notes / reversals are negative and must stay negative
+  // (Math.abs here would silently flip them into positive charges).
+  const num = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g,"")); return isNaN(n)?0:n; };
   const fmtDate = v => { const m = String(v).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/); return m ? `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}` : String(v||""); };
   const money = n => "R" + n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
   // On-screen figures: manual grouping — space thousands, dot decimals (R 15 502.00) per worksheet spec.
@@ -92,7 +94,9 @@
         excl: c.excl>=0? num(row[c.excl]) : 0,
         vat:  c.vat>=0?  num(row[c.vat])  : 0,
         total:c.total>=0?num(row[c.total]): (c.excl>=0?num(row[c.excl]):0),
-        out:  c.out>=0?  num(row[c.out])  : 0
+        // undefined (not 0) when the export has no outstanding column, so the PDF
+        // can fall back to the Grand Total instead of printing a misleading R0.00.
+        out:  c.out>=0?  num(row[c.out])  : undefined
       });
     }
     return {rows:out, siv, paye, supplier: out.length?out[0].supplier:""};
@@ -315,15 +319,21 @@
     // totals block
     const ly=214, vx=R, lx=150;
     doc.setFont("helvetica","normal").setFontSize(9).setTextColor(...grey);
+    // inv.total is VAT-INCLUSIVE ("Total Purchases"); Sub Total (excl) = total - vat,
+    // so the printed Sub Total + Total VAT always equals the Grand Total (== inv.total).
+    const excl = inv.total - inv.vat;
+    // Balance Due defaults to the Grand Total when the source had no outstanding
+    // column (inv.out is null/undefined); an explicit 0 still prints R0.00.
+    const balance = (inv.out == null) ? inv.total : inv.out;
     doc.text("Sub Total:", lx, ly); doc.text("Total VAT:", lx, ly+6);
     doc.setFont("helvetica","bold").setTextColor(...ink);
-    doc.text(money(inv.total), vx, ly, {align:"right"});
+    doc.text(money(excl), vx, ly, {align:"right"});
     doc.text(money(inv.vat), vx, ly+6, {align:"right"});
     doc.setFont("helvetica","normal").setTextColor(...grey); doc.text("Grand Total:", lx, ly+16);
     doc.setFont("helvetica","bold").setTextColor(...ink).setFontSize(10);
     doc.text(money(inv.total), vx, ly+16, {align:"right"});
     doc.setFont("helvetica","bold").setFontSize(9).setTextColor(...grey); doc.text("BALANCE DUE", vx, ly+24, {align:"right"});
-    doc.setFontSize(12).setTextColor(...ink); doc.text(money(inv.out), vx, ly+31, {align:"right"});
+    doc.setFontSize(12).setTextColor(...ink); doc.text(money(balance), vx, ly+31, {align:"right"});
 
     // Banking details (per-entity; bottom-left, left of the totals column). Quay 1 has none.
     const bank = EI.banking || [];
@@ -477,7 +487,7 @@
       const payload = a.map(r=>({
         doc_no:r.doc, broker_name: broker || r.supplier || "",
         inv_date: r.date || null, division:r.division,
-        excl:+r.excl.toFixed(2), vat:+r.vat.toFixed(2), total:+r.total.toFixed(2), outstanding:+r.out.toFixed(2),
+        excl:+r.excl.toFixed(2), vat:+r.vat.toFixed(2), total:+r.total.toFixed(2), outstanding:(r.out==null?null:+r.out.toFixed(2)),
         source_filename: SRC_FILE, entity: entity, created_by: uid, created_by_name: S.name||null
       }));
       const { error } = await window.sb.from("broker_invoices").upsert(payload, { onConflict:"entity,doc_no" });

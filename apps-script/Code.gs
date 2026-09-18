@@ -50,11 +50,16 @@ function doPost(e) {
     var broker = String(body.brokerName || 'Broker').trim();
     var invoices = Array.isArray(body.invoices) ? body.invoices : [];
     if (!to) return json({ ok: false, error: 'No recipient email.' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return json({ ok: false, error: 'Invalid recipient email.' });
     if (!invoices.length) return json({ ok: false, error: 'No invoices.' });
+    // One draft per invoice is a hard rule (invoices must never be bundled into a
+    // single email). Reject multi-invoice payloads so a future client change can't
+    // silently regress it — the client already loops one invoice at a time.
+    if (invoices.length > 1) return json({ ok: false, error: 'One invoice per draft: multi-invoice payloads are rejected. Post each invoice separately.' });
 
     var attachments = invoices.map(function (inv) {
       var bytes = Utilities.base64Decode(inv.pdfBase64);
-      return Utilities.newBlob(bytes, 'application/pdf', inv.filename || (inv.doc + '.pdf'));
+      return Utilities.newBlob(bytes, 'application/pdf', safeName(inv.filename, (inv.doc || 'invoice') + '.pdf'));
     });
 
     var total = invoices.reduce(function (s, i) { return s + (Number(i.total) || 0); }, 0);
@@ -95,4 +100,10 @@ function json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+// Strip path separators and control chars from an attachment filename so a crafted
+// `filename` can't traverse paths or inject control characters. Falls back if empty.
+function safeName(name, fallback) {
+  var n = String(name == null ? '' : name).replace(/[\/\\]/g, '_').replace(/[\x00-\x1f]/g, '').trim();
+  return n || fallback;
+}
 function fmt(n) { return (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }

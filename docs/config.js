@@ -46,7 +46,10 @@ window.QUAY_CFG = {
         logoPdfBox: { x:132, y:10, w:64, h:64*184/300 }  // square-ish flag mark, top-right
       },
       // Email sender: Quay 1 invoices go out via PAYROLL's mailbox.
-      // TODO: paste PAYROLL's Apps Script /exec URL + matching SHARED_SECRET token here.
+      // TODO(user): endpoint is EMPTY — until PAYROLL's Apps Script /exec URL and its
+      //   matching SHARED_SECRET token are pasted below, "Email all as draft" does
+      //   NOTHING for Quay 1 (records.js toasts an error and returns). Deploy
+      //   apps-script/Code.gs under the payroll account, then fill endpoint + token.
       mail: { endpoint: '', token: '', senderLabel: "payroll's" }
     },
 

@@ -117,8 +117,10 @@
   function hash(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h<<5)-h+s.charCodeAt(i)|0; } return h; }
 
   function rowsToInvoices(rows){
+    // out: keep null/undefined as undefined so the PDF falls back to Grand Total
+    // for invoices stored without an outstanding value (an explicit 0 stays 0).
     return rows.map(r=>({ doc:r.doc_no, date:r.inv_date||"", division:r.division||"", supplier:r.broker_name||"",
-      excl:+r.excl||0, vat:+r.vat||0, total:+r.total||0, out:+r.outstanding||0 }));
+      excl:+r.excl||0, vat:+r.vat||0, total:+r.total||0, out:(r.outstanding==null?undefined:+r.outstanding) }));
   }
 
   async function zipRows(rows, filename){
